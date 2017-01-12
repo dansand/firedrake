@@ -26,6 +26,7 @@ from FIAT.finite_element import entity_support_dofs
 from coffee import base as ast
 
 from pyop2 import op2
+from pyop2.datatypes import IndexType, dtype_to_ctype
 
 from firedrake import dmplex as dm_mod
 from firedrake import halo as halo_mod
@@ -95,8 +96,8 @@ def get_node_set(mesh, nodes_per_entity):
         node_set = op2.ExtrudedSet(node_set, layers=mesh.layers)
 
     assert global_numbering.getStorageSize() == node_set.total_size
-    if not extruded and node_set.total_size >= (1 << 28):
-        raise RuntimeError("Problems with more than %d nodes per process unsupported", (1 << 28))
+    if not extruded and node_set.total_size >= (1 << (IndexType.itemsize * 8 - 4)):
+        raise RuntimeError("Problems with more than %d nodes per process unsupported", (1 << (IndexType.itemsize * 8 - 4)))
     return node_set
 
 
@@ -129,7 +130,7 @@ def get_facet_node_list(mesh, kind, cell_node_list):
         facet = getattr(mesh, kind)
         return dm_mod.get_facet_nodes(facet.facet_cell, cell_node_list)
     else:
-        return numpy.array([], dtype=numpy.int32)
+        return numpy.array([], dtype=IndexType)
 
 
 @cached
@@ -369,7 +370,7 @@ class FunctionSpaceData(object):
                          data=V.exterior_facet_node_map().values_with_halo.view())
 
         facet_dat = op2.Dat(facet_set**nodes_per_facet,
-                            dtype=numpy.int32)
+                            dtype=IndexType)
 
         # Ensure these come out in sorted order.
         local_facet_nodes = numpy.array(
@@ -395,8 +396,10 @@ class FunctionSpaceData(object):
                           ])
 
         kernel = op2.Kernel(ast.FunDecl("void", "create_bc_node_map",
-                                        [ast.Decl("int*", "cell_nodes"),
-                                         ast.Decl("int*", "facet_nodes"),
+                                        [ast.Decl("%s*" % dtype_to_ctype(fs_dat.dtype),
+                                                  "cell_nodes"),
+                                         ast.Decl("%s*" % dtype_to_ctype(facet_dat.dtype),
+                                                  "facet_nodes"),
                                          ast.Decl("unsigned int*", "facet")],
                                         body),
                             "create_bc_node_map")
@@ -519,9 +522,10 @@ class FunctionSpaceData(object):
                         # bcids is sorted, so use searchsorted to find indices
                         idx = numpy.searchsorted(bcids, bc.nodes)
                         # Set appropriate bit
-                        negids[idx] |= (1 << (30 - bc.function_space().component))
+                        top = IndexType.itemsize * 8 - 2
+                        negids[idx] |= (1 << (top - bc.function_space().component))
                 node_list_bc = numpy.arange(self.node_set.total_size,
-                                            dtype=numpy.int32)
+                                            dtype=IndexType)
                 # Fix up for extruded, doesn't commute with indexedvfs
                 # for now
                 if self.extruded:
