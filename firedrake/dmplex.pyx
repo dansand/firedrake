@@ -18,6 +18,7 @@ cdef extern from "mpi-compat.h":
 
 include "dmplexinc.pxi"
 
+
 @cython.boundscheck(False)
 @cython.wraparound(False)
 def facet_numbering(PETSc.DM plex, kind,
@@ -609,7 +610,7 @@ def reordered_coords(PETSc.DM plex, PETSc.Section global_numbering, shape):
     cdef:
         PetscInt v, vStart, vEnd, offset
         PetscInt i, dim = shape[1]
-        np.ndarray[np.float64_t, ndim=2, mode="c"] plex_coords, coords
+        np.ndarray[PetscReal, ndim=2, mode="c"] plex_coords, coords
 
     plex_coords = plex.getCoordinatesLocal().array.reshape(shape)
     coords = np.empty_like(plex_coords)
@@ -1836,13 +1837,13 @@ def orientations_facet2cell(
         np.int8_t dst_orient[4]
         int i, off
         PetscInt facet, v, V
-        np.ndarray[GlobalIndexType_t, ndim=1, mode="c"] cell_orientations
+        np.ndarray[PetscInt, ndim=1, mode="c"] cell_orientations
 
     cStart, cEnd = plex.getHeightStratum(0)
     fStart, fEnd = plex.getHeightStratum(1)
     ncells = cEnd - cStart
 
-    cell_orientations = np.zeros(ncells, dtype=GlobalIndexType)
+    cell_orientations = np.zeros(ncells, dtype=PETSc.IntType)
 
     for c in range(cStart, cEnd):
         if cell_ranks[c - cStart] < 0:
@@ -1916,11 +1917,12 @@ def orientations_facet2cell(
 
     return cell_orientations
 
+
 @cython.boundscheck(False)
 @cython.wraparound(False)
 def exchange_cell_orientations(
     PETSc.DM plex, PETSc.Section section,
-    np.ndarray[GlobalIndexType_t, ndim=1, mode="c"] orientations):
+    np.ndarray[PetscInt, ndim=1, mode="c"] orientations):
 
     """Halo exchange of cell orientations.
 
@@ -1934,11 +1936,18 @@ def exchange_cell_orientations(
         PetscInt nroots, nleaves
         PetscInt *ilocal
         PetscSFNode *iremote
-        MPI.Datatype dtype = MPI.__TypeDict__[GlobalIndexType.char]
+        MPI.Datatype dtype
         PETSc.Section new_section
-        GlobalIndexType_t *new_values = NULL
+        PetscInt *new_values = NULL
         PetscInt i, c, cStart, cEnd, l, r
 
+    try:
+        try:
+            dtype = MPI.__TypeDict__[np.dtype(PETSc.IntType).char]
+        except AttributeError:
+            dtype = MPI._typedict[np.dtype(PETSc.IntType).char]
+    except KeyError:
+        raise ValueError("Don't know how to create datatype for %r", PETSc.IntType)
     # Halo exchange of cell orientations, i.e. receive orientations
     # from the owners in the halo region.
     if plex.comm.size > 1:
@@ -1973,9 +1982,9 @@ def make_global_numbering(PETSc.Section lsec, PETSc.Section gsec):
     :arg gsec: Section describing global dof layout and numbers."""
     cdef:
         PetscInt c, p, pStart, pEnd, dof, loff, goff
-        np.ndarray[GlobalIndexType_t, ndim=1, mode="c"] val
+        np.ndarray[PetscInt, ndim=1, mode="c"] val
 
-    val = np.empty(lsec.getStorageSize(), dtype=GlobalIndexType)
+    val = np.empty(lsec.getStorageSize(), dtype=PETSc.IntType)
     pStart, pEnd = lsec.getChart()
 
     for p in range(pStart, pEnd):

@@ -26,7 +26,7 @@ from FIAT.finite_element import entity_support_dofs
 from coffee import base as ast
 
 from pyop2 import op2
-from pyop2.datatypes import IndexType, dtype_to_ctype
+from pyop2.datatypes import IntType, dtype_to_ctype
 
 from firedrake import dmplex as dm_mod
 from firedrake import halo as halo_mod
@@ -96,8 +96,8 @@ def get_node_set(mesh, nodes_per_entity):
         node_set = op2.ExtrudedSet(node_set, layers=mesh.layers)
 
     assert global_numbering.getStorageSize() == node_set.total_size
-    if not extruded and node_set.total_size >= (1 << (IndexType.itemsize * 8 - 4)):
-        raise RuntimeError("Problems with more than %d nodes per process unsupported", (1 << (IndexType.itemsize * 8 - 4)))
+    if not extruded and node_set.total_size >= (1 << (IntType.itemsize * 8 - 4)):
+        raise RuntimeError("Problems with more than %d nodes per process unsupported", (1 << (IntType.itemsize * 8 - 4)))
     return node_set
 
 
@@ -130,7 +130,7 @@ def get_facet_node_list(mesh, kind, cell_node_list):
         facet = getattr(mesh, kind)
         return dm_mod.get_facet_nodes(facet.facet_cell, cell_node_list)
     else:
-        return numpy.array([], dtype=IndexType)
+        return numpy.array([], dtype=IntType)
 
 
 @cached
@@ -370,7 +370,7 @@ class FunctionSpaceData(object):
                          data=V.exterior_facet_node_map().values_with_halo.view())
 
         facet_dat = op2.Dat(facet_set**nodes_per_facet,
-                            dtype=IndexType)
+                            dtype=IntType)
 
         # Ensure these come out in sorted order.
         local_facet_nodes = numpy.array(
@@ -495,6 +495,7 @@ class FunctionSpaceData(object):
                 for bc in lbcs:
                     if bc.sub_domain in ["top", "bottom"]:
                         continue
+                    nbits = IntType.itemsize * 8 - 2
                     if decorate and bc.function_space().component is None:
                         # Some of the other entries will be marked
                         # with high bits, so we need to set all the
@@ -503,7 +504,7 @@ class FunctionSpaceData(object):
                         if bc.function_space().dim > 3:
                             raise ValueError("Can't have component BCs with more than three components (have %d)", bc.function_space().dim)
                         for cmp in range(bc.function_space().dim):
-                            negids[idx] |= (1 << (30 - cmp))
+                            negids[idx] |= (1 << (nbits - cmp))
 
                     # FunctionSpace with component is IndexedVFS
                     if bc.function_space().component is not None:
@@ -514,7 +515,7 @@ class FunctionSpaceData(object):
                         #
                         # So here we do:
                         #
-                        # node = -(node + 2**(30-cmpt) + 1)
+                        # node = -(node + 2**(nbits-cmpt) + 1)
                         #
                         # And in the generated code we can then
                         # extract the information to discard the
@@ -522,10 +523,9 @@ class FunctionSpaceData(object):
                         # bcids is sorted, so use searchsorted to find indices
                         idx = numpy.searchsorted(bcids, bc.nodes)
                         # Set appropriate bit
-                        top = IndexType.itemsize * 8 - 2
-                        negids[idx] |= (1 << (top - bc.function_space().component))
+                        negids[idx] |= (1 << (nbits - bc.function_space().component))
                 node_list_bc = numpy.arange(self.node_set.total_size,
-                                            dtype=IndexType)
+                                            dtype=IntType)
                 # Fix up for extruded, doesn't commute with indexedvfs
                 # for now
                 if self.extruded:
