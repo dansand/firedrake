@@ -9,6 +9,7 @@ from firedrake import mesh
 from firedrake import expression
 from firedrake import function
 from firedrake import functionspace
+from pyop2.datatypes import IndexType, RealType
 
 
 __all__ = ['IntervalMesh', 'UnitIntervalMesh',
@@ -54,9 +55,9 @@ def IntervalMesh(ncells, length_or_left, right=None, comm=COMM_WORLD):
         raise ValueError("Requested mesh has negative length")
     dx = float(length) / ncells
     # This ensures the rightmost point is actually present.
-    coords = np.arange(left, right + 0.01 * dx, dx).reshape(-1, 1)
-    cells = np.dstack((np.arange(0, len(coords) - 1, dtype=np.int32),
-                       np.arange(1, len(coords), dtype=np.int32))).reshape(-1, 2)
+    coords = np.arange(left, right + 0.01 * dx, dx, dtype=RealType).reshape(-1, 1)
+    cells = np.dstack((np.arange(0, len(coords) - 1, dtype=IndexType),
+                       np.arange(1, len(coords), dtype=IndexType))).reshape(-1, 2)
     plex = mesh._from_cell_list(1, cells, coords, comm)
     # Apply boundary IDs
     plex.createLabel("boundary_ids")
@@ -148,11 +149,11 @@ def OneElementThickMesh(ncells, Lx, Ly, comm=COMM_WORLD):
         COMM_WORLD).
     """
 
-    left = np.arange(ncells, dtype='int32')
+    left = np.arange(ncells, dtype=IndexType)
     right = np.roll(left, -1)
     cells = np.array([left, left, right, right]).T
     dx = Lx/ncells
-    X = np.arange(1.0*ncells)*dx
+    X = np.arange(1.0*ncells, dtype=RealType)*dx
     Y = 0.*X
     coords = np.array([X, Y]).T
 
@@ -334,12 +335,12 @@ def RectangleMesh(nx, ny, Lx, Ly, quadrilateral=False, reorder=None,
         if n <= 0 or n % 1:
             raise ValueError("Number of cells must be a postive integer")
 
-    xcoords = np.linspace(0.0, Lx, nx + 1)
-    ycoords = np.linspace(0.0, Ly, ny + 1)
+    xcoords = np.linspace(0.0, Lx, nx + 1, dtype=RealType)
+    ycoords = np.linspace(0.0, Ly, ny + 1, dtype=RealType)
     coords = np.asarray(np.meshgrid(xcoords, ycoords)).swapaxes(0, 2).reshape(-1, 2)
 
     # cell vertices
-    i, j = np.meshgrid(np.arange(nx), np.arange(ny))
+    i, j = np.meshgrid(np.arange(nx, dtype=IndexType), np.arange(ny, dtype=IndexType))
     cells = [i*(ny+1) + j, i*(ny+1) + j+1, (i+1)*(ny+1) + j+1, (i+1)*(ny+1) + j]
     cells = np.asarray(cells).swapaxes(0, 2).reshape(-1, 4)
     if not quadrilateral:
@@ -591,11 +592,11 @@ def CircleManifoldMesh(ncells, radius=1, comm=COMM_WORLD):
     if ncells < 3:
         raise ValueError("CircleManifoldMesh must have at least three cells")
 
-    vertices = radius*np.column_stack((np.cos(np.arange(ncells)*(2*np.pi/ncells)),
-                                       np.sin(np.arange(ncells)*(2*np.pi/ncells))))
+    vertices = radius*np.column_stack((np.cos(np.arange(ncells, dtype=RealType)*(2*np.pi/ncells)),
+                                       np.sin(np.arange(ncells, dtype=RealType)*(2*np.pi/ncells))))
 
-    cells = np.column_stack((np.arange(0, ncells, dtype=np.int32),
-                             np.roll(np.arange(0, ncells, dtype=np.int32), -1)))
+    cells = np.column_stack((np.arange(0, ncells, dtype=IndexType),
+                             np.roll(np.arange(0, ncells, dtype=IndexType), -1)))
 
     plex = mesh._from_cell_list(1, cells, vertices, comm)
     m = mesh.Mesh(plex, dim=2, reorder=False)
@@ -641,12 +642,14 @@ def BoxMesh(nx, ny, nz, Lx, Ly, Lz, reorder=None, comm=COMM_WORLD):
         if n <= 0 or n % 1:
             raise ValueError("Number of cells must be a postive integer")
 
-    xcoords = np.linspace(0, Lx, nx + 1)
-    ycoords = np.linspace(0, Ly, ny + 1)
-    zcoords = np.linspace(0, Lz, nz + 1)
+    xcoords = np.linspace(0, Lx, nx + 1, dtype=RealType)
+    ycoords = np.linspace(0, Ly, ny + 1, dtype=RealType)
+    zcoords = np.linspace(0, Lz, nz + 1, dtype=RealType)
     # X moves fastest, then Y, then Z
     coords = np.asarray(np.meshgrid(xcoords, ycoords, zcoords)).swapaxes(0, 3).reshape(-1, 3)
-    i, j, k = np.meshgrid(np.arange(nx), np.arange(ny), np.arange(nz))
+    i, j, k = np.meshgrid(np.arange(nx, dtype=IndexType),
+                          np.arange(ny, dtype=IndexType),
+                          np.arange(nz, dtype=IndexType))
     v0 = k*(nx + 1)*(ny + 1) + j*(nx + 1) + i
     v1 = v0 + 1
     v2 = v0 + (nx + 1)
@@ -779,7 +782,8 @@ def IcosahedralSphereMesh(radius, refinement_level=0, degree=1, reorder=None,
                          [phi, 0, -1],
                          [phi, 0, 1],
                          [-phi, 0, -1],
-                         [-phi, 0, 1]])
+                         [-phi, 0, 1]],
+                        dtype=RealType)
     # faces of the base icosahedron
     faces = np.array([[0, 11, 5],
                       [0, 5, 1],
@@ -800,7 +804,7 @@ def IcosahedralSphereMesh(radius, refinement_level=0, degree=1, reorder=None,
                       [2, 4, 11],
                       [6, 2, 10],
                       [8, 6, 7],
-                      [9, 8, 1]], dtype=np.int32)
+                      [9, 8, 1]], dtype=IndexType)
 
     plex = mesh._from_cell_list(2, faces, vertices, comm)
     plex.setRefinementUniform(True)
@@ -849,7 +853,7 @@ def _cubedsphere_cells_and_coords(radius, refinement_level):
     # transformation
     dtheta = 2**(-refinement_level+1)*np.arctan(1.0)
     a = 3.0**(-0.5)*radius
-    theta = np.arange(np.arctan(-1.0), np.arctan(1.0)+dtheta, dtheta)
+    theta = np.arange(np.arctan(-1.0), np.arctan(1.0)+dtheta, dtheta, dtype=RealType)
     x = a*np.tan(theta)
     Nx = x.size
 
@@ -864,21 +868,21 @@ def _cubedsphere_cells_and_coords(radius, refinement_level):
     # All panels are numbered from left to right, top to bottom
     # according to this diagram.
 
-    panel_numbering = np.zeros((6, Nx, Nx), dtype=np.int32)
+    panel_numbering = np.zeros((6, Nx, Nx), dtype=IndexType)
 
     # Numbering for panel 0
-    panel_numbering[0, :, :] = np.arange(Nx**2, dtype=np.int32).reshape(Nx, Nx)
+    panel_numbering[0, :, :] = np.arange(Nx**2, dtype=IndexType).reshape(Nx, Nx)
     count = panel_numbering.max()+1
 
     # Numbering for panel 5
-    panel_numbering[5, :, :] = count + np.arange(Nx**2, dtype=np.int32).reshape(Nx, Nx)
+    panel_numbering[5, :, :] = count + np.arange(Nx**2, dtype=IndexType).reshape(Nx, Nx)
     count = panel_numbering.max()+1
 
     # Numbering for panel 4 - shares top edge with 0 and bottom edge
     #                         with 5
     # interior numbering
     panel_numbering[4, 1:-1, :] = count + np.arange(Nx*(Nx-2),
-                                                    dtype=np.int32).reshape(Nx-2, Nx)
+                                                    dtype=IndexType).reshape(Nx-2, Nx)
 
     # bottom edge
     panel_numbering[4, 0, :] = panel_numbering[5, -1, :]
@@ -890,7 +894,7 @@ def _cubedsphere_cells_and_coords(radius, refinement_level):
     #                         with 0
     # interior numbering
     panel_numbering[3, 1:-1, :] = count + np.arange(Nx*(Nx-2),
-                                                    dtype=np.int32).reshape(Nx-2, Nx)
+                                                    dtype=IndexType).reshape(Nx-2, Nx)
     # bottom edge
     panel_numbering[3, 0, :] = panel_numbering[0, -1, :]
     # top edge
@@ -900,7 +904,7 @@ def _cubedsphere_cells_and_coords(radius, refinement_level):
     # Numbering for panel 1
     # interior numbering
     panel_numbering[1, 1:-1, 1:-1] = count + np.arange((Nx-2)**2,
-                                                       dtype=np.int32).reshape(Nx-2, Nx-2)
+                                                       dtype=IndexType).reshape(Nx-2, Nx-2)
     # left edge of 1 is left edge of 5 (inverted)
     panel_numbering[1, :, 0] = panel_numbering[5, ::-1, 0]
     # right edge of 1 is left edge of 0
@@ -914,7 +918,7 @@ def _cubedsphere_cells_and_coords(radius, refinement_level):
     # Numbering for panel 2
     # interior numbering
     panel_numbering[2, 1:-1, 1:-1] = count + np.arange((Nx-2)**2,
-                                                       dtype=np.int32).reshape(Nx-2, Nx-2)
+                                                       dtype=IndexType).reshape(Nx-2, Nx-2)
     # left edge of 2 is right edge of 0
     panel_numbering[2, :, 0] = panel_numbering[0, :, -1]
     # right edge of 2 is right edge of 5 (inverted)
@@ -929,7 +933,7 @@ def _cubedsphere_cells_and_coords(radius, refinement_level):
 
     # Set up an array for all of the mesh coordinates
     Npoints = panel_numbering.max()+1
-    coords = np.zeros((Npoints, 3), dtype=float)
+    coords = np.zeros((Npoints, 3), dtype=RealType)
     lX, lY = np.meshgrid(x, x)
     lX.shape = (Nx**2,)
     lY.shape = (Nx**2,)
@@ -954,8 +958,8 @@ def _cubedsphere_cells_and_coords(radius, refinement_level):
 
     # Now we need to build the face numbering
     # in local coordinates
-    vertex_numbers = np.arange(Nx**2).reshape(Nx, Nx)
-    local_faces = np.zeros(((Nx-1)**2, 4), dtype=np.int32)
+    vertex_numbers = np.arange(Nx**2, dtype=IndexType).reshape(Nx, Nx)
+    local_faces = np.zeros(((Nx-1)**2, 4), dtype=IndexType)
     local_faces[:, 0] = vertex_numbers[:-1, :-1].reshape(-1)
     local_faces[:, 1] = vertex_numbers[1:, :-1].reshape(-1)
     local_faces[:, 2] = vertex_numbers[1:, 1:].reshape(-1)
@@ -966,8 +970,7 @@ def _cubedsphere_cells_and_coords(radius, refinement_level):
 
 
 def CubedSphereMesh(radius, refinement_level=0, degree=1,
-                    reorder=None, use_dmplex_refinement=False,
-                    comm=COMM_WORLD):
+                    reorder=None, comm=COMM_WORLD):
     """Generate an cubed approximation to the surface of the
     sphere.
 
@@ -976,8 +979,6 @@ def CubedSphereMesh(radius, refinement_level=0, degree=1,
     :kwarg degree: polynomial degree of coordinate space (defaults
         to 1: bilinear quads)
     :kwarg reorder: (optional), should the mesh be reordered?
-    :kwarg use_dmplex_refinement: (optional), use dmplex to apply
-        the refinement.
     """
     if refinement_level < 0 or refinement_level % 1:
             raise RuntimeError("Number of refinements must be a non-negative integer")
@@ -1038,13 +1039,13 @@ def TorusMesh(nR, nr, R, r, quadrilateral=False, reorder=None, comm=COMM_WORLD):
     idx_temp = np.asarray(np.meshgrid(np.arange(nR), np.arange(nr))).swapaxes(0, 2).reshape(-1, 2)
 
     # vertices - standard formula for (x, y, z), see Wikipedia
-    vertices = np.column_stack((
+    vertices = np.asarray(np.column_stack((
         (R + r*np.cos(idx_temp[:, 1]*(2*np.pi/nr)))*np.cos(idx_temp[:, 0]*(2*np.pi/nR)),
         (R + r*np.cos(idx_temp[:, 1]*(2*np.pi/nr)))*np.sin(idx_temp[:, 0]*(2*np.pi/nR)),
-        r*np.sin(idx_temp[:, 1]*(2*np.pi/nr))))
+        r*np.sin(idx_temp[:, 1]*(2*np.pi/nr)))), dtype=RealType)
 
     # cell vertices
-    i, j = np.meshgrid(np.arange(nR), np.arange(nr))
+    i, j = np.meshgrid(np.arange(nR, dtype=IndexType), np.arange(nr, dtype=IndexType))
     i = i.reshape(-1)  # Miklos's suggestion to make the code
     j = j.reshape(-1)  # less impenetrable
     cells = [i*nr + j, i*nr + (j+1) % nr, ((i+1) % nR)*nr + (j+1) % nr, ((i+1) % nR)*nr + j]
@@ -1086,15 +1087,16 @@ def CylinderMesh(nr, nl, radius=1, depth=1, longitudinal_direction="z",
     coord_xy = radius*np.column_stack((np.cos(np.arange(nr)*(2*np.pi/nr)),
                                        np.sin(np.arange(nr)*(2*np.pi/nr))))
     coord_z = depth*np.linspace(0.0, 1.0, nl + 1).reshape(-1, 1)
-    vertices = np.column_stack((np.tile(coord_xy, (nl + 1, 1)),
-                                np.tile(coord_z, (1, nr)).reshape(-1, 1)))
+    vertices = np.asarray(np.column_stack((np.tile(coord_xy, (nl + 1, 1)),
+                                           np.tile(coord_z, (1, nr)).reshape(-1, 1))),
+                          dtype=RealType)
 
     # intervals on circumference
-    ring_cells = np.column_stack((np.arange(0, nr, dtype=np.int32),
-                                  np.roll(np.arange(0, nr, dtype=np.int32), -1)))
+    ring_cells = np.column_stack((np.arange(0, nr, dtype=IndexType),
+                                  np.roll(np.arange(0, nr, dtype=IndexType), -1)))
     # quads in the first layer
     ring_cells = np.column_stack((ring_cells, np.roll(ring_cells, 1, axis=1) + nr))
-    offset = np.arange(nl)*nr
+    offset = np.arange(nl, dtype=IndexType)*nr
     cells = np.row_stack((ring_cells + i for i in offset))
     if not quadrilateral:
         # two cells per cell above...
@@ -1103,12 +1105,12 @@ def CylinderMesh(nr, nl, radius=1, depth=1, longitudinal_direction="z",
     if longitudinal_direction == "x":
         rotation = np.asarray([[0, 0, 1],
                                [0, 1, 0],
-                               [-1, 0, 0]])
+                               [-1, 0, 0]], dtype=RealType)
         vertices = np.dot(vertices, rotation.T)
     elif longitudinal_direction == "y":
         rotation = np.asarray([[1, 0, 0],
                                [0, 0, 1],
-                               [0, -1, 0]])
+                               [0, -1, 0]], dtype=RealType)
         vertices = np.dot(vertices, rotation.T)
     elif longitudinal_direction != "z":
         raise ValueError("Unknown longitudinal direction '%s'" % longitudinal_direction)
