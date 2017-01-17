@@ -1,10 +1,11 @@
 """Provides the interface to TSFC for compiling a form, and transforms the TSFC-
 generated code in order to make it suitable for passing to the backends."""
 from __future__ import absolute_import, print_function, division
+import six
 
 from hashlib import md5
 from os import path, environ, getuid, makedirs
-import cPickle
+import _pickle as cPickle
 import gzip
 import os
 import zlib
@@ -92,10 +93,10 @@ class TSFCKernel(Cached):
         # FIXME Making the COFFEE parameters part of the cache key causes
         # unnecessary repeated calls to TSFC when actually only the kernel code
         # needs to be regenerated
-        return md5(form.signature() + name
-                   + str(default_parameters["coffee"])
-                   + str(parameters)
-                   + str(number_map)).hexdigest(), form.ufl_domains()[0].comm
+        return md5(six.b(form.signature() + name
+                         + str(default_parameters["coffee"])
+                         + str(parameters)
+                         + str(number_map))).hexdigest(), form.ufl_domains()[0].comm
 
     def __init__(self, form, name, parameters, number_map):
         """A wrapper object for one or more TSFC kernels compiled from a given :class:`~ufl.classes.Form`.

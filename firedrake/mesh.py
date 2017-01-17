@@ -506,7 +506,7 @@ class MeshTopology(object):
         # Compute the facet_numbering
         # Order exterior facets by OP2 entity class
         exterior_facets, exterior_facet_classes = \
-            dmplex.get_facets_by_class(self._plex, "exterior_facets",
+            dmplex.get_facets_by_class(self._plex, b"exterior_facets",
                                        self._facet_ordering)
 
         # Derive attached boundary IDs
@@ -551,7 +551,7 @@ class MeshTopology(object):
         # Compute the facet_numbering
         # Order interior facets by OP2 entity class
         interior_facets, interior_facet_classes = \
-            dmplex.get_facets_by_class(self._plex, "interior_facets",
+            dmplex.get_facets_by_class(self._plex, b"interior_facets",
                                        self._facet_ordering)
 
         interior_local_facet_number, interior_facet_cell = \
@@ -648,7 +648,7 @@ class MeshTopology(object):
 
     @utils.cached_property
     def cell_set(self):
-        size = list(self._entity_classes[self.cell_dimension(), :])
+        size = list(map(int, self._entity_classes[self.cell_dimension(), :]))
         return op2.Set(size, "Cells", comm=self.comm)
 
     def cell_subset(self, subdomain_id, all_integer_subdomain_ids=None):

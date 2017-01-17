@@ -88,7 +88,7 @@ def get_node_set(mesh, nodes_per_entity):
     dm = PETSc.DMShell().create(mesh.comm)
     dm.setPointSF(mesh._plex.getPointSF())
     dm.setDefaultSection(global_numbering)
-    node_classes = tuple(numpy.dot(nodes_per_entity, mesh._entity_classes))
+    node_classes = tuple(map(int, numpy.dot(nodes_per_entity, mesh._entity_classes)))
     node_set = op2.Set(node_classes, halo=halo_mod.Halo(dm), comm=mesh.comm)
     # Don't need it any more, explicitly destroy.
     dm.destroy()
