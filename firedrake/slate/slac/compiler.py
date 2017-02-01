@@ -32,8 +32,6 @@ from pyop2.utils import get_petsc_dir
 
 from tsfc.parameters import SCALAR_TYPE
 
-from ufl import Coefficient
-
 import numpy as np
 
 
